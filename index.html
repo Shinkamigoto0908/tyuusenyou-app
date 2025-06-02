@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>乱数生成器(抽選アプリ)v1.0.0</title>
+<style>
+  /* ページ全体の余白リセット */
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    background: #f0f4f8;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+  }
+
+  /* コンテナ */
+  .container {
+    background: #fff;
+    padding: 60px 50px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    max-width: 420px;
+    width: 100%;
+    margin: 40px auto;
+    transition: opacity 0.3s ease;
+  }
+
+  h1 {
+    margin-bottom: 25px;
+    font-weight: 700;
+    font-size: 1.8rem;
+    text-align: center;
+    color: #0078d7;
+  }
+
+  h2 {
+    margin-bottom: 15px;
+    font-weight: 700;
+    font-size: 1.5rem;
+    text-align: center;
+    color: #0078d7;
+  }
+ 
+  label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    font-weight: 600;
+    font-size: 1rem;
+    color: #444;
+  }
+
+  input[type=number], select {
+    width: 100px;
+    padding: 8px 12px;
+    font-size: 1rem;
+    border: 1.5px solid #ccc;
+    border-radius: 6px;
+    transition: border-color 0.5s ease;
+  }
+  input[type=number]:focus, select:focus {
+    border-color: #0078d7;
+    outline: none;
+  }
+
+  button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: white;
+    background-color: #0078d7;
+    border: none;
+    border-radius: 8px;
+    cursor: normal;
+    transition: background-color 0.25s ease;
+  }
+  button:hover {
+    background-color: #005ea1;
+  }
+  button:active {
+    background-color: #004070;
+  }
+
+  /* 中央スピナー */
+  #spinner-big {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 80px;
+    height: 80px;
+    border: 6px solid #e0e0e0;
+    border-top: 6px solid #0078d7;
+    border-radius: 50%;
+    animation: spin 1.0s linear infinite;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+    display: none;
+  }
+
+  @keyframes spin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(300deg); }
+  }
+
+  /* モーダル */
+  #modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0,0,0,0.6);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9998;
+    padding: 20px;
+  }
+  #modal-content {
+    background: white;
+    padding: 32px 40px;
+    border-radius: 16px;
+    max-width: 600px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    text-align: center;
+    position: relative;
+    font-size: 1.6rem;
+    color: #2d8f2d;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #modal-close {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #555;
+    cursor: normal;
+    user-select: none;
+  }
+  #modal-close:hover {
+    color: #0078d7;
+  }
+</style>
+</head>
+<body>
+
+  <div class="container" id="form-container">
+    <h1>抽選webアプリ</h1>
+    <h2>Ver 1.0.0</h2>
+
+    <label for="min">参加者最少人数　　　　　　　:
+      <input type="number" id="min" value="1" min="-1000000" max="1000000" />
+    </label>
+
+    <label for="max">参加者最大人数　　　　　　　:
+      <input type="number" id="max" value="100" min="-1000000" max="1000000" />
+    </label>
+
+    <label for="count">抽選人数　　　　　　　　　　:
+      <input type="number" id="count" value="5" min="1" max="1000" />
+    </label>
+
+    <label for="allowDuplicates">重複設定(許可するか)　　　　:
+      <select id="allowDuplicates">
+        <option value="true" selected>はい</option>
+        <option value="false">いいえ</option>
+      </select>
+    </label>
+
+    <label for="duration">時間(発表までの時間を秒数で入力)　:
+      <input type="number" id="duration" value="1" min="0" step="0.1" />
+    </label>
+
+    <button onclick="startRandomGeneration()">生成</button>
+  </div>
+
+  <div id="spinner-big"></div>
+
+  <!-- モーダル -->
+  <div id="modal" onclick="closeModal(event)">
+    <div id="modal-content">
+      <div id="modal-close" onclick="closeModal(event)">&times;</div>
+      <h2>生成結果</h2>
+      <div id="modal-result"></div>
+    </div>
+  </div>
+
+<script>
+  function startRandomGeneration() {
+    const formContainer = document.getElementById('form-container');
+    const spinner = document.getElementById('spinner-big');
+    const duration = parseFloat(document.getElementById('duration').value) * 1000;
+    const resultElement = document.getElementById('modal-result');
+    resultElement.textContent = '';
+
+    if (isNaN(duration) || duration < 0) {
+      alert('生成時間は0以上の数字で入力してください。');
+      return;
+    }
+
+    // UI非表示、スピナー表示
+    formContainer.style.display = 'none';
+    spinner.style.display = 'block';
+
+    setTimeout(() => {
+      spinner.style.display = 'none';
+      formContainer.style.display = 'block';
+
+      const resultText = generateRandomNumbers();
+      if(resultText) {
+        showModal(resultText);
+      }
+    }, duration);
+  }
+
+  function generateRandomNumbers() {
+    const min = parseInt(document.getElementById('min').value, 10);
+    const max = parseInt(document.getElementById('max').value, 10);
+    const count = parseInt(document.getElementById('count').value, 10);
+    const allowDuplicates = document.getElementById('allowDuplicates').value === 'true';
+
+    if (isNaN(min) || isNaN(max) || isNaN(count) || min > max || count <= 0) {
+      return '正しい数値を入力してください';
+    }
+
+    const rangeSize = max - min + 1;
+    if (!allowDuplicates && count > rangeSize) {
+      return `重複なしの場合、個数は最大で範囲サイズ(${rangeSize})までです。`;
+    }
+
+    const results = [];
+
+    if (allowDuplicates) {
+      for (let i = 0; i < count; i++) {
+        const random = Math.floor(Math.random() * rangeSize) + min;
+        results.push(random);
+      }
+    } else {
+      const pool = [];
+      for (let i = min; i <= max; i++) pool.push(i);
+      shuffleArray(pool);
+      results.push(...pool.slice(0, count));
+    }
+
+    return `生成された${count}個の乱数（重複${allowDuplicates ? 'あり' : 'なし'}）:\n` + results.join(', ');
+  }
+
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+
+  // モーダル表示
+  function showModal(text) {
+    const modal = document.getElementById('modal');
+    const resultElement = document.getElementById('modal-result');
+    resultElement.textContent = text;
+    modal.style.display = 'flex';
+  }
+
+  // モーダル閉じる（背景クリック＆×クリック対応）
+  function closeModal(event) {
+    if (event.target.id === 'modal' || event.target.id === 'modal-close') {
+      document.getElementById('modal').style.display = 'none';
+    }
+  }
+</script>
+
+</body>
+</html>
