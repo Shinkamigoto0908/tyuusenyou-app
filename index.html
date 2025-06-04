@@ -2,9 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>乱数生成器(抽選アプリ)v1.0.0</title>
+<title>乱数生成器(抽選アプリ)v1.0.1</title>
 <style>
-  /* ページ全体の余白リセット */
   html, body {
     margin: 0;
     padding: 0;
@@ -14,7 +13,6 @@
     color: #333;
   }
 
-  /* コンテナ */
   .container {
     background: #fff;
     padding: 60px 50px;
@@ -23,25 +21,24 @@
     max-width: 420px;
     width: 100%;
     margin: 40px auto;
-    transition: opacity 0.3s ease;
+  }
+
+  h1, h2 {
+    text-align: center;
+    color: #0078d7;
+    font-weight: 700;
   }
 
   h1 {
-    margin-bottom: 25px;
-    font-weight: 700;
     font-size: 1.8rem;
-    text-align: center;
-    color: #0078d7;
+    margin-bottom: 25px;
   }
 
   h2 {
-    margin-bottom: 15px;
-    font-weight: 700;
     font-size: 1.5rem;
-    text-align: center;
-    color: #0078d7;
+    margin-bottom: 15px;
   }
- 
+
   label {
     display: flex;
     justify-content: space-between;
@@ -52,7 +49,7 @@
     color: #444;
   }
 
-  input[type=number], select {
+  input[type=number], input[type=text], select {
     width: 100px;
     padding: 8px 12px;
     font-size: 1rem;
@@ -60,7 +57,8 @@
     border-radius: 6px;
     transition: border-color 0.5s ease;
   }
-  input[type=number]:focus, select:focus {
+
+  input:focus, select:focus {
     border-color: #0078d7;
     outline: none;
   }
@@ -75,17 +73,18 @@
     background-color: #0078d7;
     border: none;
     border-radius: 8px;
-    cursor: normal;
+    cursor: pointer;
     transition: background-color 0.25s ease;
   }
+
   button:hover {
     background-color: #005ea1;
   }
+
   button:active {
     background-color: #004070;
   }
 
-  /* 中央スピナー */
   #spinner-big {
     position: fixed;
     top: 50%;
@@ -106,7 +105,6 @@
     100% { transform: translate(-50%, -50%) rotate(300deg); }
   }
 
-  /* モーダル */
   #modal {
     position: fixed;
     top: 0;
@@ -120,6 +118,7 @@
     z-index: 9998;
     padding: 20px;
   }
+
   #modal-content {
     background: white;
     padding: 32px 40px;
@@ -136,6 +135,7 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
+
   #modal-close {
     position: absolute;
     top: 12px;
@@ -143,9 +143,10 @@
     font-size: 28px;
     font-weight: bold;
     color: #555;
-    cursor: normal;
+    cursor: pointer;
     user-select: none;
   }
+
   #modal-close:hover {
     color: #0078d7;
   }
@@ -155,7 +156,7 @@
 
   <div class="container" id="form-container">
     <h1>抽選webアプリ</h1>
-    <h2>Ver 1.0.0</h2>
+    <h2>Ver 1.0.2</h2>
 
     <label for="min">参加者最少人数　　　　　　　:
       <input type="number" id="min" value="1" min="-1000000" max="1000000" />
@@ -176,8 +177,8 @@
       </select>
     </label>
 
-    <label for="duration">時間(発表までの時間を秒数で入力)　:
-      <input type="number" id="duration" value="1" min="0" step="0.1" />
+    <label for="excludes">除外する数字（カンマ区切り）　:
+      <input type="text" id="excludes" placeholder="例: 4,13,66" />
     </label>
 
     <button onclick="startRandomGeneration()">生成</button>
@@ -185,7 +186,6 @@
 
   <div id="spinner-big"></div>
 
-  <!-- モーダル -->
   <div id="modal" onclick="closeModal(event)">
     <div id="modal-content">
       <div id="modal-close" onclick="closeModal(event)">&times;</div>
@@ -198,16 +198,11 @@
   function startRandomGeneration() {
     const formContainer = document.getElementById('form-container');
     const spinner = document.getElementById('spinner-big');
-    const duration = parseFloat(document.getElementById('duration').value) * 1000;
     const resultElement = document.getElementById('modal-result');
     resultElement.textContent = '';
 
-    if (isNaN(duration) || duration < 0) {
-      alert('生成時間は0以上の数字で入力してください。');
-      return;
-    }
+    const duration = 100; // 常に0.1秒（100ミリ秒）
 
-    // UI非表示、スピナー表示
     formContainer.style.display = 'none';
     spinner.style.display = 'block';
 
@@ -216,7 +211,7 @@
       formContainer.style.display = 'block';
 
       const resultText = generateRandomNumbers();
-      if(resultText) {
+      if (resultText) {
         showModal(resultText);
       }
     }, duration);
@@ -227,31 +222,39 @@
     const max = parseInt(document.getElementById('max').value, 10);
     const count = parseInt(document.getElementById('count').value, 10);
     const allowDuplicates = document.getElementById('allowDuplicates').value === 'true';
+    const excludeInput = document.getElementById('excludes').value.trim();
+    const excludes = excludeInput
+      ? excludeInput.split(',').map(x => parseInt(x.trim(), 10)).filter(x => !isNaN(x))
+      : [];
 
     if (isNaN(min) || isNaN(max) || isNaN(count) || min > max || count <= 0) {
       return '正しい数値を入力してください';
     }
 
-    const rangeSize = max - min + 1;
+    const pool = [];
+    for (let i = min; i <= max; i++) {
+      if (!excludes.includes(i)) {
+        pool.push(i);
+      }
+    }
+
+    const rangeSize = pool.length;
     if (!allowDuplicates && count > rangeSize) {
       return `重複なしの場合、個数は最大で範囲サイズ(${rangeSize})までです。`;
     }
 
     const results = [];
-
     if (allowDuplicates) {
       for (let i = 0; i < count; i++) {
-        const random = Math.floor(Math.random() * rangeSize) + min;
+        const random = pool[Math.floor(Math.random() * rangeSize)];
         results.push(random);
       }
     } else {
-      const pool = [];
-      for (let i = min; i <= max; i++) pool.push(i);
       shuffleArray(pool);
       results.push(...pool.slice(0, count));
     }
 
-    return `生成された${count}個の乱数（重複${allowDuplicates ? 'あり' : 'なし'}）:\n` + results.join(', ');
+    return `生成された${count}個の乱数（重複${allowDuplicates ? 'あり' : 'なし'}、除外: ${excludes.join(', ') || 'なし'}）:\n` + results.join(', ');
   }
 
   function shuffleArray(array) {
@@ -261,7 +264,6 @@
     }
   }
 
-  // モーダル表示
   function showModal(text) {
     const modal = document.getElementById('modal');
     const resultElement = document.getElementById('modal-result');
@@ -269,7 +271,6 @@
     modal.style.display = 'flex';
   }
 
-  // モーダル閉じる（背景クリック＆×クリック対応）
   function closeModal(event) {
     if (event.target.id === 'modal' || event.target.id === 'modal-close') {
       document.getElementById('modal').style.display = 'none';
